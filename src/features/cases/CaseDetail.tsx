@@ -1,6 +1,8 @@
 import { CheckCircle2, ChevronLeft, DollarSign, FileText, X } from "lucide-react";
 import { COLORS } from "../../theme/colors";
 import { hashSeed } from "../../lib/geo";
+import { displayName } from "../../lib/contact";
+import { initials } from "../../lib/schedule";
 import { MiniMap } from "../../components/map/MiniMap";
 import { Card } from "../../components/primitives/Card";
 import { Pill } from "../../components/primitives/Pill";
@@ -24,16 +26,24 @@ export function CaseDetail({
   const surfaceRgb = isPanel ? "255,255,255" : "246,247,251";
   const s = statusStyle[kase.status];
   const dim = kase.status === "resolved";
+  // gates the hero's bottom-left customer overlay (panel mode only) — same
+  // "are we confident enough to show a name" threshold used everywhere else
+  // a contact match surfaces a name instead of a fallback/placeholder
+  const contactName = displayName(kase.contact);
   return (
     // panel mode gets the same ultra-wide backstop cap as CallDetail's panel
-    // mode, and reflows the info cards into a 2-column grid (Status spanning
-    // both) instead of a single stack — otherwise this much width just
-    // leaves the cards looking sparse against a mostly-empty card
+    // mode, and reflows the info cards into a 2-column grid instead of a
+    // single stack — otherwise this much width just leaves the cards
+    // looking sparse against a mostly-empty card
     <div className={`h-full flex flex-col ${isPanel ? "w-full max-w-[1200px] mx-auto" : ""}`}>
       {/* hero: map extends up behind the header and fades into the
           surrounding background before the content starts, instead of two
-          stacked blocks */}
-      <div className="relative shrink-0" style={{ height: 200 }}>
+          stacked blocks. Panel mode (desktop) gets a bit more height and
+          overlays Status (top-right) and the customer's name/avatar
+          (bottom-left) directly on the map, mirroring the pill-on-map-card
+          pattern used throughout Queue/Cases lists (see MapCard) instead of
+          burying that info in cards below the fold. */}
+      <div className="relative shrink-0" style={{ height: isPanel ? 240 : 200 }}>
         <MiniMap seed={hashSeed(kase.id)} distancePct={22} mode={caseMapMode[kase.status]} dim={dim} latlng={kase.latlng} />
         <div
           className="absolute inset-0"
@@ -70,16 +80,58 @@ export function CaseDetail({
             <div className="text-xs text-[#454B5C]">{kase.location}</div>
           </div>
         </div>
+        {/* Status, repositioned off the card grid and onto the map corner —
+            same overlay slot QueueScreen's MapCard uses for its "when" pill,
+            same colored look the Status card used to have */}
+        {isPanel && (
+          <div className="absolute top-2.5 right-2.5 flex flex-col items-end gap-1">
+            <Pill style={{ background: s.bg, color: s.fg }}>{s.label}</Pill>
+            {kase.meta && <span className="text-[11px] font-medium text-[#454B5C]">{kase.meta}</span>}
+          </div>
+        )}
+        {/* customer name + avatar, bottom-left over the map — only when we
+            actually have a confident match; no placeholder for an
+            unconfirmed/missing contact. Sits in the hero's existing
+            fade-to-surface band (see the gradient div above), which is why
+            dark text reads fine here despite being "on the map" — same
+            reasoning MapCard's bottom-left overlays rely on. Solid
+            accent-colored initials circle with a white ring (not
+            ContactCard's light-tinted avatar) for contrast against varied
+            map tile colors, matching ScheduledAgendaList's avatar + the
+            white-ringed marker style in StreetMap. */}
+        {isPanel && contactName && (
+          <div className="absolute bottom-3 left-4 right-4 flex items-center gap-2.5">
+            <div
+              className="w-10 h-10 rounded-full flex items-center justify-center text-[12px] font-bold text-white shrink-0 border-2 border-white shadow-sm"
+              style={{ backgroundColor: COLORS.accent }}
+            >
+              {initials(contactName)}
+            </div>
+            <div className="min-w-0">
+              <div className="text-sm font-semibold truncate text-[#1E2233]">{contactName}</div>
+              {kase.contact?.matchSource && (
+                <div className="text-[11px] text-[#454B5C] truncate">{kase.contact.matchSource}</div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
       <div className={`flex-1 overflow-y-auto p-4 -mt-8 ${isPanel ? "grid grid-cols-2 items-start gap-3" : "flex flex-col gap-3"}`}>
-        <Card className={isPanel ? "col-span-2" : ""}>
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[11px] font-medium uppercase tracking-wide text-[#6B7280]">Status</span>
-            <Pill style={{ background: s.bg, color: s.fg }}>{s.label}</Pill>
-          </div>
-          {kase.meta && <div className="text-sm text-[#454B5C] mt-1">{kase.meta}</div>}
-        </Card>
-        {kase.contact && <ContactCard contact={kase.contact} />}
+        {/* panel mode shows Status in the hero corner instead (see above) —
+            fullscreen has no hero overlays, so it keeps the Status card */}
+        {!isPanel && (
+          <Card>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[11px] font-medium uppercase tracking-wide text-[#6B7280]">Status</span>
+              <Pill style={{ background: s.bg, color: s.fg }}>{s.label}</Pill>
+            </div>
+            {kase.meta && <div className="text-sm text-[#454B5C] mt-1">{kase.meta}</div>}
+          </Card>
+        )}
+        {/* panel mode already shows name + match confidence + source in the
+            hero's bottom-left overlay (see contactName above) — this card
+            would just repeat it, so it's fullscreen-only too */}
+        {!isPanel && kase.contact && <ContactCard contact={kase.contact} />}
         {kase.contextItems && (
           <Card>
             <div className="flex items-center gap-1.5 mb-2 text-[#6B7280]">

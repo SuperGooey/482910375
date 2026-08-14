@@ -61,6 +61,8 @@ export interface CaseRecord {
   id: string;
   unit: string;
   location: string;
+  /** Stable slug identifying the physical address (kebab-case, derived from `location`), independent of the human-readable string — used to key into property-level records like service history. */
+  propertyId: string;
   status: CaseStatus;
   meta?: string;
   latlng: LatLng;
@@ -73,6 +75,19 @@ export interface CaseRecord {
   date?: string;
   time?: string;
   durationMin?: number;
+}
+
+// One past-visit record at a property, shown in the case detail's service
+// history timeline (date, technician, what was done, and the cost).
+export interface ServiceHistoryEntry {
+  id: string;
+  /** ISO date (YYYY-MM-DD), always before "today" in the app's simulated clock. */
+  date: string;
+  /** Same "Tech · First Initial. Last Name" format as CaseRecord.unit / CallUnit.id, so it's compatible with initials() as-is. */
+  techUnit: string;
+  jobType: "Water Heater" | "HVAC" | "Plumbing" | "Electrical" | "Gas";
+  summary: string;
+  cost: number;
 }
 
 export interface MissedCall {
