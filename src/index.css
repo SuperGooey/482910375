@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+/* Design tokens, mirrored from src/theme/colors.ts (COLORS) so `bg-accent`,
+   `text-ink`, etc. are available as Tailwind utilities alongside the
+   arbitrary-value classes (`bg-[#3B5BDB]`) already used throughout. */
+@theme {
+  --color-ink: #1e2233;
+  --color-subtle: #454b5c;
+  --color-muted: #6b7280;
+  --color-faint: #9aa0b0;
+  --color-accent: #3b5bdb;
+  --color-page: #f6f7fb;
+  --color-surface: #f1f2f8;
+  --color-border: #eceef5;
+  --color-success: #1f9d63;
+  --color-success-bg: #e4f7ee;
+  --color-warning: #c98a1d;
+  --color-warning-bg: #fff4de;
+  --color-danger: #e4534b;
+  --color-danger-bg: #ffe8e8;
+  --color-track-inactive: #e7e8ec;
+}
+
+/* visible keyboard focus everywhere, without adding a ring on mouse/touch taps */
+button:focus-visible,
+[role="button"]:focus-visible,
+input:focus-visible,
+a:focus-visible {
+  outline: 2px solid #3b5bdb;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
