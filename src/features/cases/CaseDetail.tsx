@@ -1,4 +1,4 @@
-import { CheckCircle2, ChevronLeft, DollarSign, FileText } from "lucide-react";
+import { CheckCircle2, ChevronLeft, DollarSign, FileText, X } from "lucide-react";
 import { COLORS } from "../../theme/colors";
 import { hashSeed } from "../../lib/geo";
 import { MiniMap } from "../../components/map/MiniMap";
@@ -8,18 +8,38 @@ import { ContactCard } from "../../components/ContactCard";
 import type { CaseRecord } from "../../types";
 import { caseMapMode, statusStyle } from "./shared";
 
-export function CaseDetail({ kase, onBack }: { kase: CaseRecord; onBack: () => void }) {
+export function CaseDetail({
+  kase,
+  variant = "fullscreen",
+  onBack,
+}: {
+  kase: CaseRecord;
+  variant?: "fullscreen" | "panel";
+  onBack: () => void;
+}) {
+  const isPanel = variant === "panel";
+  // fullscreen sits directly on the page background; the panel variant sits
+  // inside DetailPane's white elevated card instead — the hero fade needs to
+  // fade to whichever of those it's actually over, or it shows a seam
+  const surfaceRgb = isPanel ? "255,255,255" : "246,247,251";
   const s = statusStyle[kase.status];
   const dim = kase.status === "resolved";
   return (
-    <div className="h-full flex flex-col">
-      {/* hero: map extends up behind the header and fades into the page
-          background before the content starts, instead of two stacked blocks */}
+    // panel mode gets the same ultra-wide backstop cap as CallDetail's panel
+    // mode, and reflows the info cards into a 2-column grid (Status spanning
+    // both) instead of a single stack — otherwise this much width just
+    // leaves the cards looking sparse against a mostly-empty card
+    <div className={`h-full flex flex-col ${isPanel ? "w-full max-w-[1200px] mx-auto" : ""}`}>
+      {/* hero: map extends up behind the header and fades into the
+          surrounding background before the content starts, instead of two
+          stacked blocks */}
       <div className="relative shrink-0" style={{ height: 200 }}>
         <MiniMap seed={hashSeed(kase.id)} distancePct={22} mode={caseMapMode[kase.status]} dim={dim} latlng={kase.latlng} />
         <div
           className="absolute inset-0"
-          style={{ background: "linear-gradient(to bottom, rgba(246,247,251,0) 0%, rgba(246,247,251,0) 72%, #F6F7FB 100%)" }}
+          style={{
+            background: `linear-gradient(to bottom, rgba(${surfaceRgb},0) 0%, rgba(${surfaceRgb},0) 72%, rgb(${surfaceRgb}) 100%)`,
+          }}
         />
         {/* pure blur gradient, single layer masked to fade — a continuous mask
             is smoother in principle than any number of discrete bands */}
@@ -34,8 +54,16 @@ export function CaseDetail({ kase, onBack }: { kase: CaseRecord; onBack: () => v
           }}
         />
         <div className="absolute top-0 left-0 right-0 px-4 py-3 flex items-center gap-3">
-          <button onClick={onBack} aria-label="Back" className="w-9 h-9 rounded-full bg-white/85 flex items-center justify-center">
-            <ChevronLeft size={16} className="text-[#454B5C]" />
+          <button
+            onClick={onBack}
+            aria-label={isPanel ? "Close" : "Back"}
+            className="w-9 h-9 rounded-full bg-white/85 flex items-center justify-center"
+          >
+            {isPanel ? (
+              <X size={16} className="text-[#454B5C]" />
+            ) : (
+              <ChevronLeft size={16} className="text-[#454B5C]" />
+            )}
           </button>
           <div className="min-w-0">
             <div className="text-sm font-semibold truncate text-[#1E2233]">{kase.unit}</div>
@@ -43,8 +71,8 @@ export function CaseDetail({ kase, onBack }: { kase: CaseRecord; onBack: () => v
           </div>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-4 -mt-8 flex flex-col gap-3">
-        <Card>
+      <div className={`flex-1 overflow-y-auto p-4 -mt-8 ${isPanel ? "grid grid-cols-2 items-start gap-3" : "flex flex-col gap-3"}`}>
+        <Card className={isPanel ? "col-span-2" : ""}>
           <div className="flex items-center justify-between mb-1">
             <span className="text-[11px] font-medium uppercase tracking-wide text-[#6B7280]">Status</span>
             <Pill style={{ background: s.bg, color: s.fg }}>{s.label}</Pill>

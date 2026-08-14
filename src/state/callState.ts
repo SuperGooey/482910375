@@ -1,3 +1,4 @@
+import { useLayoutEffect, useReducer, type Dispatch } from "react";
 import { displayName } from "../lib/contact";
 import type { Call, CallUnit } from "../types";
 
@@ -113,6 +114,32 @@ export function callReducer(state: CallState, action: CallAction): CallState {
     default:
       return state;
   }
+}
+
+// wraps callReducer with a RESET case, letting the reducer live above
+// whatever component swap the desktop/mobile shells do (so resizing across
+// that breakpoint mid-call doesn't lose the call clock, transcript, or
+// confirmation state) without CallDetail itself needing to know about it.
+export type CallDetailAction = CallAction | { type: "RESET"; call: Call };
+
+function callDetailReducer(state: CallState | null, action: CallDetailAction): CallState | null {
+  if (action.type === "RESET") return initCallState(action.call);
+  if (!state) return state;
+  return callReducer(state, action);
+}
+
+// owns the reducer at whatever level never unmounts across the mobile/desktop
+// shell swap, and re-initializes via RESET whenever the open call's id
+// changes. useLayoutEffect (not useEffect) so the reset lands before paint —
+// no visible flash of stale/empty state when opening a call.
+export function useCallDetailState(call: Call | null): [CallState | null, Dispatch<CallAction>] {
+  const [state, dispatch] = useReducer(callDetailReducer, null);
+  const callId = call?.id ?? null;
+  useLayoutEffect(() => {
+    if (call) dispatch({ type: "RESET", call });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [callId]);
+  return [state, dispatch];
 }
 
 // the call moves through these phases as the transcript plays out; each

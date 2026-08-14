@@ -1,20 +1,17 @@
 import { useEffect, useState } from "react";
-import { ClipboardList, Phone, PhoneIncoming } from "lucide-react";
 import { COLORS } from "./theme/colors";
-import { frostedStyle } from "./theme/styles";
-import { CALLS, CASES, COMPLETED_CALLS, MISSED_CALLS } from "./data/mockData";
-import { SegmentedControl } from "./components/primitives/SegmentedControl";
-import { QueueScreen } from "./features/queue/QueueScreen";
-import { MissedScreen } from "./features/missed/MissedScreen";
-import { CompletedScreen } from "./features/completed/CompletedScreen";
-import { CasesScreen } from "./features/cases/CasesScreen";
-import { ScheduledView } from "./features/cases/ScheduledView";
-import { CaseDetail } from "./features/cases/CaseDetail";
-import { CallDetail } from "./features/call-detail/CallDetail";
+import { CALLS, CASES } from "./data/mockData";
+import { useMediaQuery } from "./hooks/useMediaQuery";
+import { useCallDetailState } from "./state/callState";
+import { MobileShell } from "./shell/MobileShell";
+import { DesktopShell } from "./shell/DesktopShell";
+import { casesViewForStatus, type CasesView, type QueueView, type Tab } from "./shell/types";
 
-type Tab = "queue" | "cases";
-type QueueView = "live" | "missed" | "completed";
-type CasesView = "active" | "scheduled" | "resolved";
+// screens >= this width get the desktop split-pane shell instead of the
+// mobile single-pane one — must match Tailwind's `lg:` breakpoint (Tailwind
+// v4 has no JS config to import this from, so it's a small accepted
+// duplication, same as COLORS vs. the CSS @theme block).
+const DESKTOP_QUERY = "(min-width: 1024px)";
 
 // ---------------- App shell ----------------
 export default function DispatchConsole() {
@@ -23,6 +20,7 @@ export default function DispatchConsole() {
   const [casesView, setCasesView] = useState<CasesView>("active");
   const [openCallId, setOpenCallId] = useState<string | null>(null);
   const [openCaseId, setOpenCaseId] = useState<string | null>(null);
+  const isDesktop = useMediaQuery(DESKTOP_QUERY);
 
   useEffect(() => {
     // some mobile browsers/webviews auto-invert colors for system dark mode
@@ -49,112 +47,90 @@ export default function DispatchConsole() {
     casesView === "active" ? k.status === "en_route" || k.status === "on_scene" : k.status === casesView
   );
 
+  // lives here, above the mobile/desktop shell swap, so resizing across that
+  // breakpoint mid-call doesn't reset the call clock, transcript, or
+  // confirmation state — see state/callState.ts's useCallDetailState
+  const [callState, callDispatch] = useCallDetailState(openCall ?? null);
+
+  // switching tabs/sub-views clears whatever's docked in the detail pane —
+  // otherwise, e.g., navigating from "In progress" to "Missed" would leave a
+  // stale, no-longer-listed case sitting in the panel. On mobile this is a
+  // no-op: the tab/sub-view controls aren't even reachable while something's
+  // open there (the full-screen detail view replaces them entirely), so
+  // openCallId/openCaseId are already null by the time these ever fire.
+  const handleSetTab = (next: Tab) => {
+    setTab(next);
+    setOpenCallId(null);
+    setOpenCaseId(null);
+  };
+  const handleSetQueueView = (next: QueueView) => {
+    setQueueView(next);
+    setOpenCallId(null);
+    setOpenCaseId(null);
+  };
+  const handleSetCasesView = (next: CasesView) => {
+    setCasesView(next);
+    setOpenCallId(null);
+    setOpenCaseId(null);
+  };
+
+  const onViewJob = (caseId: string) => {
+    setOpenCallId(null);
+    setOpenCaseId(caseId);
+    // keeps the list pane in sync with the docked detail panel on desktop,
+    // where both are visible at once; on mobile only one pane is ever
+    // visible, so there's nothing to desync and this is skipped to avoid
+    // changing where "back" lands (today, always wherever you were)
+    if (isDesktop) {
+      setTab("cases");
+      const kase = CASES.find((k) => k.id === caseId);
+      if (kase) setCasesView(casesViewForStatus(kase.status));
+    }
+  };
+
   return (
     <div
-      className="font-sans text-[#1E2233] h-screen max-w-md mx-auto flex flex-col overflow-hidden border-x border-[#ECEEF5]"
+      className={
+        isDesktop
+          ? "font-sans text-[#1E2233] h-screen w-full flex flex-col overflow-hidden"
+          : "font-sans text-[#1E2233] h-screen max-w-md mx-auto flex flex-col overflow-hidden border-x border-[#ECEEF5]"
+      }
       style={{ colorScheme: "light", backgroundColor: COLORS.page }}
     >
-      {openCall ? (
-        <CallDetail
-          call={openCall}
-          onBack={() => setOpenCallId(null)}
-          onViewJob={(caseId) => {
-            setOpenCallId(null);
-            setOpenCaseId(caseId);
-          }}
+      {isDesktop ? (
+        <DesktopShell
+          tab={tab}
+          setTab={handleSetTab}
+          queueView={queueView}
+          setQueueView={handleSetQueueView}
+          casesView={casesView}
+          setCasesView={handleSetCasesView}
+          openCall={openCall}
+          openCase={openCase}
+          callState={callState}
+          callDispatch={callDispatch}
+          filteredCases={filteredCases}
+          setOpenCallId={setOpenCallId}
+          setOpenCaseId={setOpenCaseId}
+          onViewJob={onViewJob}
         />
-      ) : openCase ? (
-        <CaseDetail kase={openCase} onBack={() => setOpenCaseId(null)} />
       ) : (
-        <div className="relative flex-1 min-h-0">
-          {/* scrollable content — sits full-bleed behind the header/footer, with
-              padding just to clear them at rest; scrolling slides it underneath */}
-          <div className="absolute inset-0 overflow-y-auto pb-20 pt-28">
-            {tab === "queue" ? (
-              queueView === "live" ? (
-                <QueueScreen calls={CALLS} onOpen={setOpenCallId} />
-              ) : queueView === "missed" ? (
-                <MissedScreen calls={MISSED_CALLS} />
-              ) : (
-                <CompletedScreen calls={COMPLETED_CALLS} />
-              )
-            ) : casesView === "scheduled" ? (
-              <ScheduledView cases={filteredCases} onOpen={setOpenCaseId} />
-            ) : (
-              <CasesScreen cases={filteredCases} onOpen={setOpenCaseId} />
-            )}
-          </div>
-
-          {/* shared frosted backdrop behind the header text and the picker below it —
-              sized to reach the picker's bottom edge so the fade lands there, not
-              partway through */}
-          <div
-            className="absolute top-0 left-0 right-0 z-10 pointer-events-none"
-            style={{ height: 104, ...frostedStyle("down") }}
-          />
-
-          {/* header text, no background of its own now — sits on the shared backdrop */}
-          <div className="absolute top-0 left-0 right-0 z-10 px-4 pt-3 pb-4 flex items-center justify-between">
-            <div className="text-[15px] font-bold">{tab === "queue" ? "Live queue" : "Jobs"}</div>
-            <div className="flex items-center gap-1.5 text-[#6B7280] text-[12px]">
-              <PhoneIncoming size={13} />
-              {tab === "cases"
-                ? `${filteredCases.length} ${casesView === "active" ? "in progress" : casesView}`
-                : queueView === "live"
-                ? `${CALLS.length} active`
-                : queueView === "missed"
-                ? `${MISSED_CALLS.length} missed`
-                : `${COMPLETED_CALLS.length} in history`}
-            </div>
-          </div>
-
-          {/* Live / Missed / Completed picker, or Active / Scheduled / Resolved for cases */}
-          <div className="absolute left-0 right-0 z-10 px-4 pt-2 pb-4" style={{ top: 40, ...frostedStyle("down") }}>
-            {tab === "queue" ? (
-              <SegmentedControl
-                variant="track"
-                value={queueView}
-                onChange={setQueueView}
-                ariaLabel="Queue view"
-                options={[
-                  { key: "live", label: "Live" },
-                  { key: "missed", label: "Missed" },
-                  { key: "completed", label: "History" },
-                ]}
-              />
-            ) : (
-              <SegmentedControl
-                variant="track"
-                value={casesView}
-                onChange={setCasesView}
-                ariaLabel="Jobs view"
-                options={[
-                  { key: "active", label: "In progress" },
-                  { key: "scheduled", label: "Scheduled" },
-                  { key: "resolved", label: "Resolved" },
-                ]}
-              />
-            )}
-          </div>
-
-          {/* floating footer: same treatment, fading upward into content */}
-          <div className="absolute bottom-0 left-0 right-0 z-10 flex pt-4" style={frostedStyle("up")}>
-            <button
-              onClick={() => setTab("queue")}
-              className={`flex-1 flex flex-col items-center gap-1 pb-2.5 ${tab === "queue" ? "text-[#3B5BDB]" : "text-[#9AA0B0]"}`}
-            >
-              <Phone size={18} />
-              <span className="text-[11px] font-medium">Queue</span>
-            </button>
-            <button
-              onClick={() => setTab("cases")}
-              className={`flex-1 flex flex-col items-center gap-1 pb-2.5 ${tab === "cases" ? "text-[#3B5BDB]" : "text-[#9AA0B0]"}`}
-            >
-              <ClipboardList size={18} />
-              <span className="text-[11px] font-medium">Jobs</span>
-            </button>
-          </div>
-        </div>
+        <MobileShell
+          tab={tab}
+          setTab={handleSetTab}
+          queueView={queueView}
+          setQueueView={handleSetQueueView}
+          casesView={casesView}
+          setCasesView={handleSetCasesView}
+          openCall={openCall}
+          openCase={openCase}
+          callState={callState}
+          callDispatch={callDispatch}
+          filteredCases={filteredCases}
+          setOpenCallId={setOpenCallId}
+          setOpenCaseId={setOpenCaseId}
+          onViewJob={onViewJob}
+        />
       )}
     </div>
   );

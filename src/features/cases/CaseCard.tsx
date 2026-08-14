@@ -6,7 +6,15 @@ import { Pill } from "../../components/primitives/Pill";
 import type { CaseRecord } from "../../types";
 import { caseMapMode, statusStyle } from "./shared";
 
-export function CaseCard({ k, onOpen }: { k: CaseRecord; onOpen: (id: string) => void }) {
+export function CaseCard({
+  k,
+  onOpen,
+  active = false,
+}: {
+  k: CaseRecord;
+  onOpen: (id: string) => void;
+  active?: boolean;
+}) {
   const s = statusStyle[k.status];
   const dim = k.status === "resolved";
   return (
@@ -21,6 +29,7 @@ export function CaseCard({ k, onOpen }: { k: CaseRecord; onOpen: (id: string) =>
       latlng={k.latlng}
       topGradient="via-white/75"
       bottomGradient="from-white/80"
+      active={active}
     >
       <div className="absolute top-2.5 left-2.5">
         <Pill size={10} weight={600} style={{ background: s.bg, color: s.fg }}>

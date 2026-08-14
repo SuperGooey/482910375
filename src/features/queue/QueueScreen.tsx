@@ -48,7 +48,15 @@ function callStage(c: Call): CallStageInfo {
   };
 }
 
-export function QueueScreen({ calls, onOpen }: { calls: Call[]; onOpen: (id: string) => void }) {
+export function QueueScreen({
+  calls,
+  onOpen,
+  activeId = null,
+}: {
+  calls: Call[];
+  onOpen: (id: string) => void;
+  activeId?: string | null;
+}) {
   return (
     <div className="flex flex-col gap-2.5 p-4">
       {calls.map((c) => {
@@ -66,6 +74,7 @@ export function QueueScreen({ calls, onOpen }: { calls: Call[]; onOpen: (id: str
             latlng={c.latlng}
             topGradient="via-white/75"
             bottomGradient="from-white/80"
+            active={c.id === activeId}
           >
             <div className="absolute top-2.5 left-2.5">
               <Pill

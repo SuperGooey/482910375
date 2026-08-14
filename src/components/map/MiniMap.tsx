@@ -34,6 +34,7 @@ export function MiniMap({
   useEffect(() => {
     if (!latlng) return;
     let cancelled = false;
+    let resizeObserver: ResizeObserver | null = null;
     loadLeaflet()
       .then((L) => {
         if (cancelled || !containerRef.current || mapRef.current) return;
@@ -58,10 +59,16 @@ export function MiniMap({
         mapRef.current = map;
         setStatus("ready");
         setTimeout(() => map.invalidateSize(), MAP_RESIZE_SETTLE_DELAY_MS);
+        // the one-shot invalidateSize above only accounts for layout settling
+        // right after mount — a card's map can also resize later (e.g. a
+        // desktop panel being resized), so keep tiles aligned through that too
+        resizeObserver = new ResizeObserver(() => map.invalidateSize());
+        resizeObserver.observe(containerRef.current);
       })
       .catch(() => !cancelled && setStatus("fallback"));
     return () => {
       cancelled = true;
+      resizeObserver?.disconnect();
     };
   }, [latlng]);
 

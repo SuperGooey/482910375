@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useReducer, useRef } from "react";
+import { Fragment, useEffect, useRef, type Dispatch, type ReactNode } from "react";
 import {
   AlertTriangle,
   ArrowRightLeft,
@@ -14,6 +14,7 @@ import {
   PhoneOff,
   Users,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import { COLORS, ink, urgencyDot } from "../../theme/colors";
 import { frostedStyle } from "../../theme/styles";
@@ -23,15 +24,15 @@ import {
   CALL_PHASES,
   MESSAGE_ADVANCE_DELAY_MS,
   MESSAGE_REVEAL_DELAY_MS,
-  callReducer,
-  initCallState,
   selectAssignedTech,
   selectAuthorLabel,
   selectCanConfirm,
   selectCurrentPhaseIndex,
   selectIdentifiedName,
   selectNameKnown,
+  type CallAction,
   type CallDetailTab,
+  type CallState,
 } from "../../state/callState";
 import type { Call } from "../../types";
 import { Card } from "../../components/primitives/Card";
@@ -45,16 +46,32 @@ import { ContactCard } from "../../components/ContactCard";
 import { StreetMap } from "../../components/map/StreetMap";
 import { UnitCard } from "./UnitCard";
 
+// how far the pinned plan card's own footprint reaches up into the
+// scrolling area above it — every scrollable region behind it (whether
+// that's the single fullscreen column or each of the panel's three
+// columns) reserves this much bottom padding so content never hides under it
+const PLAN_CARD_CLEARANCE_PX = 240;
+
 export function CallDetail({
   call,
+  state,
+  dispatch,
+  variant = "fullscreen",
   onBack,
   onViewJob,
 }: {
   call: Call;
+  state: CallState;
+  dispatch: Dispatch<CallAction>;
+  variant?: "fullscreen" | "panel";
   onBack: () => void;
   onViewJob?: (caseId: string) => void;
 }) {
-  const [state, dispatch] = useReducer(callReducer, call, initCallState);
+  const isPanel = variant === "panel";
+  // fullscreen sits directly on the page background; the panel variant sits
+  // inside DetailPane's white elevated card instead — every edge-fade needs
+  // to fade to whichever of those it's actually over, or it shows a seam
+  const surfaceRgb = isPanel ? "255,255,255" : "246,247,251";
   const pickerTriggerRef = useRef<HTMLButtonElement | null>(null);
   const pickerRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -73,12 +90,12 @@ export function CallDetail({
       document.removeEventListener("keydown", onKeyDown);
       trigger?.focus();
     };
-  }, [state.showPicker]);
+  }, [state.showPicker, dispatch]);
 
   useEffect(() => {
     const t = setInterval(() => dispatch({ type: "TICK_CLOCK" }), CALL_CLOCK_TICK_MS);
     return () => clearInterval(t);
-  }, []);
+  }, [dispatch]);
 
   // each newly-visible message "speaks" for a moment (waveform) before its
   // text resolves — including the first message, on mount
@@ -87,7 +104,7 @@ export function CallDetail({
     const idx = state.visibleMsgCount - 1;
     const t = setTimeout(() => dispatch({ type: "REVEAL_MESSAGE", idx }), MESSAGE_REVEAL_DELAY_MS);
     return () => clearTimeout(t);
-  }, [state.visibleMsgCount]);
+  }, [state.visibleMsgCount, dispatch]);
 
   // advance to the next script line once the current one has had time to land
   useEffect(() => {
@@ -95,7 +112,7 @@ export function CallDetail({
     const t = setTimeout(() => dispatch({ type: "ADVANCE_MESSAGE" }), MESSAGE_ADVANCE_DELAY_MS);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.visibleMsgCount]);
+  }, [state.visibleMsgCount, dispatch]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -116,7 +133,7 @@ export function CallDetail({
     if (state.mode !== "ai" || !canConfirm || state.confirmed) return;
     const t = setTimeout(() => dispatch({ type: "CONFIRM" }), AUTO_CONFIRM_DELAY_MS);
     return () => clearTimeout(t);
-  }, [state.mode, canConfirm, state.confirmed]);
+  }, [state.mode, canConfirm, state.confirmed, dispatch]);
 
   const tabs: SegmentedControlOption<CallDetailTab>[] = [
     { key: "units", label: "Team", icon: Users },
@@ -124,12 +141,74 @@ export function CallDetail({
     { key: "context", label: "Context", icon: FileText },
   ];
 
+  // the three sections' content, shared between the fullscreen tab switcher
+  // (one visible at a time) and the desktop panel's three simultaneous
+  // columns — built once so neither layout duplicates the markup
+  const teamContent = (
+    <div className="flex flex-col gap-2.5">
+      {state.ranked.map((u) => (
+        <UnitCard key={u.id} u={u} centerLatLng={call.latlng} />
+      ))}
+    </div>
+  );
+
+  const transcriptContent = (
+    <div ref={scrollRef} className="flex flex-col gap-2.5" aria-live="polite" aria-relevant="additions">
+      {call.script.slice(0, state.visibleMsgCount).map((m, i) => {
+        const isCaller = m.who === "caller";
+        const authorLabel = selectAuthorLabel(state, call, i);
+        return (
+          <div key={i} className={`flex flex-col gap-1 max-w-[80%] ${isCaller ? "self-end items-end" : "self-start items-start"}`}>
+            <Squircle
+              as="div"
+              radius={isCaller ? [20, 20, 6, 20] : [20, 20, 20, 6]}
+              className="px-4 py-2.5 text-sm leading-snug transition-all duration-300"
+              style={
+                isCaller
+                  ? { backgroundColor: COLORS.accent, color: "#FFFFFF" }
+                  : { backgroundColor: COLORS.surface, color: COLORS.ink }
+              }
+            >
+              {state.revealedMsgIdxs.has(i) ? m.text : <Waveform color={isCaller ? "#FFFFFF" : COLORS.accent} />}
+            </Squircle>
+            <span className="text-[10px] text-[#9AA0B0] px-1">{authorLabel}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const contextContent = (
+    <div className="flex flex-col gap-2">
+      <SquircleCard as="div" radius={18} className="relative h-28 overflow-hidden">
+        <StreetMap ranked={state.ranked} height="100%" />
+      </SquircleCard>
+      {call.contact && <ContactCard contact={call.contact} />}
+      {call.contextItems && call.contextItems.length > 0 ? (
+        call.contextItems.map((a, i) => (
+          <Card key={i}>
+            <div className="text-[13px] font-semibold mb-0.5">{a.label}</div>
+            <div className="text-[12px] text-[#6B7280] leading-snug">{a.detail}</div>
+          </Card>
+        ))
+      ) : (
+        <div className="text-[13px] text-[#9AA0B0] text-center px-6 py-6">
+          Nothing else surfaced yet — relevant history or documents will appear here as the call develops.
+        </div>
+      )}
+    </div>
+  );
+
   return (
-    <div className="relative h-full flex flex-col">
+    <div className={`relative h-full flex flex-col ${isPanel ? "w-full max-w-[1200px] mx-auto" : ""}`}>
       {/* top strip */}
-      <div className="relative z-10 px-4 py-2.5 flex items-center gap-2.5 shrink-0" style={frostedStyle("down")}>
-        <button onClick={onBack} aria-label="Back" className="w-9 h-9 rounded-full bg-[#F1F2F8] flex items-center justify-center shrink-0">
-          <ChevronLeft size={16} className="text-[#454B5C]" />
+      <div className="relative z-10 px-4 py-2.5 flex items-center gap-2.5 shrink-0" style={frostedStyle("down", surfaceRgb)}>
+        <button
+          onClick={onBack}
+          aria-label={isPanel ? "Close" : "Back"}
+          className="w-9 h-9 rounded-full bg-[#F1F2F8] flex items-center justify-center shrink-0"
+        >
+          {isPanel ? <X size={16} className="text-[#454B5C]" /> : <ChevronLeft size={16} className="text-[#454B5C]" />}
         </button>
         <div className="min-w-0">
           <div className="text-[13px] font-semibold leading-tight truncate">{call.situation}</div>
@@ -139,16 +218,19 @@ export function CallDetail({
         </div>
       </div>
 
-      {/* tab switcher — native-style segmented control, just below the caller info */}
-      <div className="px-4 pt-3 pb-2 shrink-0">
-        <SegmentedControl
-          variant="track"
-          options={tabs}
-          value={state.tab}
-          onChange={(tab) => dispatch({ type: "SET_TAB", tab })}
-          ariaLabel="Call detail sections"
-        />
-      </div>
+      {/* tab switcher — only meaningful when one section shows at a time;
+          the desktop panel shows Team/Call/Context simultaneously instead */}
+      {!isPanel && (
+        <div className="px-4 pt-3 pb-2 shrink-0">
+          <SegmentedControl
+            variant="track"
+            options={tabs}
+            value={state.tab}
+            onChange={(tab) => dispatch({ type: "SET_TAB", tab })}
+            ariaLabel="Call detail sections"
+          />
+        </div>
+      )}
 
       {/* surfaced context card */}
       {call.banner && !state.contextDismissed && (
@@ -162,12 +244,16 @@ export function CallDetail({
               <div className="text-[12px] mt-0.5 leading-snug" style={{ color: "#7A2A25" }}>
                 {call.banner.body}
               </div>
-              <button
-                onClick={() => dispatch({ type: "SET_TAB", tab: "context" })}
-                className="text-[11px] font-semibold text-[#3B5BDB] mt-1.5"
-              >
-                View details →
-              </button>
+              {/* the context section is always visible in the panel layout,
+                  so there's nowhere to jump to */}
+              {!isPanel && (
+                <button
+                  onClick={() => dispatch({ type: "SET_TAB", tab: "context" })}
+                  className="text-[11px] font-semibold text-[#3B5BDB] mt-1.5"
+                >
+                  View details →
+                </button>
+              )}
             </div>
             <button
               onClick={() => dispatch({ type: "DISMISS_BANNER" })}
@@ -185,66 +271,31 @@ export function CallDetail({
           absolute layer so it can pass fully behind the pinned card instead
           of being squeezed by ordinary flex sizing */}
       <div className="relative flex-1 min-h-0">
-        <div className="absolute inset-0 overflow-y-auto px-4 pt-1" style={{ paddingBottom: 240 }}>
-          {state.tab === "units" && (
-            <div className="flex flex-col gap-2.5">
-              {state.ranked.map((u) => (
-                <UnitCard key={u.id} u={u} centerLatLng={call.latlng} />
-              ))}
-            </div>
-          )}
-          {state.tab === "call" && (
-            <div ref={scrollRef} className="flex flex-col gap-2.5" aria-live="polite" aria-relevant="additions">
-              {call.script.slice(0, state.visibleMsgCount).map((m, i) => {
-                const isCaller = m.who === "caller";
-                const authorLabel = selectAuthorLabel(state, call, i);
-                return (
-                  <div key={i} className={`flex flex-col gap-1 max-w-[80%] ${isCaller ? "self-end items-end" : "self-start items-start"}`}>
-                    <Squircle
-                      as="div"
-                      radius={isCaller ? [20, 20, 6, 20] : [20, 20, 20, 6]}
-                      className="px-4 py-2.5 text-sm leading-snug transition-all duration-300"
-                      style={
-                        isCaller
-                          ? { backgroundColor: COLORS.accent, color: "#FFFFFF" }
-                          : { backgroundColor: COLORS.surface, color: COLORS.ink }
-                      }
-                    >
-                      {state.revealedMsgIdxs.has(i) ? m.text : <Waveform color={isCaller ? "#FFFFFF" : COLORS.accent} />}
-                    </Squircle>
-                    <span className="text-[10px] text-[#9AA0B0] px-1">{authorLabel}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          {state.tab === "context" && (
-            <div className="flex flex-col gap-2">
-              <SquircleCard as="div" radius={18} className="relative h-28 overflow-hidden">
-                <StreetMap ranked={state.ranked} height="100%" />
-              </SquircleCard>
-              {call.contact && <ContactCard contact={call.contact} />}
-              {call.contextItems && call.contextItems.length > 0 ? (
-                call.contextItems.map((a, i) => (
-                  <Card key={i}>
-                    <div className="text-[13px] font-semibold mb-0.5">{a.label}</div>
-                    <div className="text-[12px] text-[#6B7280] leading-snug">{a.detail}</div>
-                  </Card>
-                ))
-              ) : (
-                <div className="text-[13px] text-[#9AA0B0] text-center px-6 py-6">
-                  Nothing else surfaced yet — relevant history or documents will appear here as the call develops.
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        {isPanel ? (
+          <div className="absolute inset-0 flex">
+            <PanelColumn width={260} icon={Users} label="Team" borderSide="right">
+              {teamContent}
+            </PanelColumn>
+            <PanelColumn icon={MessageSquare} label="Call">
+              {transcriptContent}
+            </PanelColumn>
+            <PanelColumn width={300} icon={FileText} label="Context" borderSide="left">
+              {contextContent}
+            </PanelColumn>
+          </div>
+        ) : (
+          <div className="absolute inset-0 overflow-y-auto px-4 pt-1" style={{ paddingBottom: PLAN_CARD_CLEARANCE_PX }}>
+            {state.tab === "units" && teamContent}
+            {state.tab === "call" && transcriptContent}
+            {state.tab === "context" && contextContent}
+          </div>
+        )}
 
         {/* fade where scrolling content passes behind the card — gives the
             pinned card a little visual separation instead of a hard edge */}
         <div
           className="absolute left-0 right-0 bottom-0 pointer-events-none"
-          style={{ height: 210, background: "linear-gradient(to bottom, rgba(246,247,251,0) 0%, #F6F7FB 75%)" }}
+          style={{ height: 210, background: `linear-gradient(to bottom, rgba(${surfaceRgb},0) 0%, rgb(${surfaceRgb}) 75%)` }}
         />
 
         {/* pinned plan card — floats above the bottom edge with real elevation */}
@@ -496,6 +547,40 @@ export function CallDetail({
           </SquircleCard>
         </div>
       )}
+    </div>
+  );
+}
+
+// one column of the desktop panel's simultaneous Team/Call/Context layout —
+// its own label, its own scroll region, its own bottom clearance for the
+// pinned plan card that overlays all three columns at once
+function PanelColumn({
+  width,
+  icon: Icon,
+  label,
+  borderSide,
+  children,
+}: {
+  width?: number;
+  icon: LucideIcon;
+  label: string;
+  borderSide?: "left" | "right";
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={`h-full min-h-0 overflow-y-auto ${width ? "shrink-0" : "flex-1 min-w-0"} ${
+        borderSide === "left" ? "border-l" : borderSide === "right" ? "border-r" : ""
+      } border-[#ECEEF5]`}
+      style={width ? { width } : undefined}
+    >
+      <div className="px-4 pt-4 pb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#6B7280]">
+        <Icon size={12} />
+        {label}
+      </div>
+      <div className="px-4" style={{ paddingBottom: PLAN_CARD_CLEARANCE_PX }}>
+        {children}
+      </div>
     </div>
   );
 }

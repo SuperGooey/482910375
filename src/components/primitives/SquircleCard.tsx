@@ -6,6 +6,7 @@ interface SquircleCardProps extends HTMLAttributes<HTMLElement> {
   as?: ElementType;
   radius?: SquircleRadius;
   borderColor?: string;
+  borderWidth?: number;
   shadow?: string;
   onClick?: MouseEventHandler<HTMLElement>;
   children?: ReactNode;
@@ -25,6 +26,7 @@ export function SquircleCard({
   radius = 20,
   className = "",
   borderColor = COLORS.border,
+  borderWidth = 1,
   shadow,
   onClick,
   children,
@@ -47,7 +49,7 @@ export function SquircleCard({
             like a full-bleed map paint over an inset box-shadow border,
             since that's a background-layer effect that sits behind
             normal child content */}
-        <div className="absolute inset-0 pointer-events-none" style={{ borderRadius, boxShadow: `inset 0 0 0 1px ${borderColor}` }} />
+        <div className="absolute inset-0 pointer-events-none" style={{ borderRadius, boxShadow: `inset 0 0 0 ${borderWidth}px ${borderColor}` }} />
       </Tag>
     </div>
   );
