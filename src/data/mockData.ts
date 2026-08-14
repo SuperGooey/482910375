@@ -277,6 +277,15 @@ export const CASES: CaseRecord[] = [
   },
 ];
 
+// Reverse lookup for Call.resultCaseId — given a CaseRecord.id, finds the
+// Call (if any) that produced it, so a future case-detail accordion can
+// show "the call that led to this case." Most cases have no matching call
+// here (walk-ins/scheduled follow-ups aren't sourced from a CALLS entry) —
+// callers should handle `undefined` gracefully rather than assume a match.
+export function findOriginatingCall(caseId: string): Call | undefined {
+  return CALLS.find((call) => call.resultCaseId === caseId);
+}
+
 export const MISSED_CALLS: MissedCall[] = [
   {
     id: "m1",

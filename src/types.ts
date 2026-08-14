@@ -90,6 +90,35 @@ export interface ServiceHistoryEntry {
   cost: number;
 }
 
+export type WarrantyStatus = "active" | "expired" | "unknown";
+
+// A piece of equipment on file at a property (make/model, install date,
+// warranty), surfaced in the case detail's pre-visit briefing so a
+// dispatcher knows what's already installed before a technician arrives.
+// Property-level like ServiceHistoryEntry — equipment persists across
+// visits/cases at the same address, independent of any single call/case.
+export interface EquipmentInfo {
+  id: string;
+  /** Descriptive equipment type, e.g. "Water Heater", "Central AC", "Furnace", "Kitchen Faucet" — more specific than ServiceHistoryEntry.jobType's broader job categories. */
+  type: string;
+  make: string;
+  model: string;
+  /** ISO date (YYYY-MM-DD) the unit was installed, if known. */
+  installDate?: string;
+  warrantyStatus: WarrantyStatus;
+  /** ISO date (YYYY-MM-DD) the warranty expires/expired, if known. */
+  warrantyExpiration?: string;
+  /**
+   * Whether a manual/parts-order affordance should be offered for this
+   * unit. Deliberately booleans rather than href/URL fields — there's no
+   * real manual or parts catalog behind this demo data, so a future UI
+   * should treat these as "show the button" flags and wire up an actual
+   * destination later rather than link out anywhere now.
+   */
+  manualAvailable?: boolean;
+  partsAvailable?: boolean;
+}
+
 export interface MissedCall {
   id: string;
   location: string;
