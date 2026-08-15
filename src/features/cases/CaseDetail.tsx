@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { CheckCircle2, ChevronDown, ChevronLeft, DollarSign, FileText, History, Phone, StickyNote, Wrench, X } from "lucide-react";
-import { COLORS } from "../../theme/colors";
+import { COLORS, PHOTO_TEXT_SHADOW } from "../../theme/colors";
 import { hashSeed } from "../../lib/geo";
 import { displayName } from "../../lib/contact";
 import { initials } from "../../lib/schedule";
@@ -142,7 +142,11 @@ export function CaseDetail({
               <ChevronLeft size={16} className="text-[#454B5C]" />
             )}
           </button>
-          <div className="min-w-0">
+          {/* text-shadow (inherited by both lines below) — this sits directly
+              on the map with nothing behind it, and a map's colors are
+              unpredictable enough that dark text alone isn't reliably
+              legible against it */}
+          <div className="min-w-0" style={{ textShadow: PHOTO_TEXT_SHADOW }}>
             <div className="text-sm font-semibold truncate text-[#1E2233]">{kase.unit}</div>
             <div className="text-xs text-[#454B5C]">{kase.location}</div>
           </div>
@@ -181,11 +185,33 @@ export function CaseDetail({
             >
               {initials(contactName)}
             </div>
-            <div className="min-w-0">
-              <div className="text-lg font-bold truncate text-[#1E2233]">{contactName}</div>
-              {kase.contact?.matchSource && (
-                <div className="text-[13px] text-[#454B5C] truncate">{kase.contact.matchSource}</div>
-              )}
+            <div className="relative min-w-0 isolate">
+              {/* soft spotlight behind the name — a radial gradient (already
+                  opaque at center, transparent by the edges on its own) with
+                  a little blur on top of that for extra softness, negative
+                  z-index so it sits behind the static-flow text without
+                  needing a z-index on the text itself. `isolate` gives this
+                  wrapper its own stacking context — without it, a plain
+                  `relative` parent has no context of its own, so the -z-10
+                  child escapes past it and stacks behind the map/gradient
+                  layers in the hero (verified empirically: at full opacity
+                  it painted nothing at all, not just faintly). Sized well
+                  past the text block so the gradient's opaque core — not
+                  just its fade-out tail — sits behind the actual glyphs. */}
+              <div
+                className="absolute -inset-x-8 -inset-y-5 -z-10 pointer-events-none"
+                style={{
+                  background:
+                    "radial-gradient(ellipse at center, rgba(255,255,255,0.75) 0%, rgba(255,255,255,0.4) 45%, rgba(255,255,255,0) 75%)",
+                  filter: "blur(10px)",
+                }}
+              />
+              <div style={{ textShadow: PHOTO_TEXT_SHADOW }}>
+                <div className="text-lg font-bold truncate text-[#1E2233]">{contactName}</div>
+                {kase.contact?.matchSource && (
+                  <div className="text-[13px] text-[#454B5C] truncate">{kase.contact.matchSource}</div>
+                )}
+              </div>
             </div>
           </div>
         )}
