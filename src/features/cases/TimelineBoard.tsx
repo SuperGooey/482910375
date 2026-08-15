@@ -19,11 +19,13 @@ export function TimelineBoard({
   jobs,
   onOpen,
   focusDate,
+  activeId = null,
 }: {
   technicians: string[];
   jobs: CaseRecord[];
   onOpen: (id: string) => void;
   focusDate?: string;
+  activeId?: string | null;
 }) {
   const [zoom, setZoom] = useState(0.46); // default to roughly a day's worth visible
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -165,6 +167,7 @@ export function TimelineBoard({
                       const left = startMin * pxPerMin;
                       const width = Math.max(dur * pxPerMin, 6);
                       const wide = width > 60;
+                      const isActive = j.id === activeId;
                       return (
                         <Squircle
                           as="button"
@@ -179,6 +182,11 @@ export function TimelineBoard({
                             backgroundColor: COLORS.accent,
                             color: "#FFFFFF",
                             padding: wide ? "4px 8px" : "2px",
+                            // outward rings get clipped away by the squircle's own
+                            // clip-path, so the "selected" indicator has to be an
+                            // inset ring instead — same reason SquircleCard keeps
+                            // its shadow on a separate, unclipped wrapper
+                            boxShadow: isActive ? "inset 0 0 0 2px rgba(255,255,255,0.95)" : undefined,
                           }}
                         >
                           {wide ? (

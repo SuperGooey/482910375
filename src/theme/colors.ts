@@ -34,6 +34,31 @@ export function ink(alpha: number): string {
 // the standard resting elevation used by every card in the app
 export const CARD_SHADOW = `0 1px 2px ${ink(0.03)}, 0 6px 18px ${ink(0.04)}`;
 
+// for dark text sitting directly on photo/map imagery (no card behind it),
+// where a plain drop shadow alone isn't reliable. This app's map tiles are
+// deliberately desaturated/brightened (see MiniMap's tile-pane filter), so
+// a *blurred* white glow has almost nothing to push against — it reads as
+// basically invisible on most of this app's maps. A crisp white edge does
+// the job reliably regardless of how light the map underneath is: eight
+// zero-blur white shadows, one in each direction, approximate a thin even
+// stroke around the glyph (the classic "poor man's text-stroke" — plain
+// text-shadow, so it works everywhere -webkit-text-stroke might not). Kept
+// just under full opacity, and paired with a soft dark shadow on top for
+// depth against lighter patches, so it still reads as lifted text rather
+// than a flat cartoon outline.
+export const PHOTO_TEXT_SHADOW = [
+  "1.5px 0 0 rgba(255,255,255,0.95)",
+  "-1.5px 0 0 rgba(255,255,255,0.95)",
+  "0 1.5px 0 rgba(255,255,255,0.95)",
+  "0 -1.5px 0 rgba(255,255,255,0.95)",
+  "1px 1px 0 rgba(255,255,255,0.95)",
+  "-1px -1px 0 rgba(255,255,255,0.95)",
+  "1px -1px 0 rgba(255,255,255,0.95)",
+  "-1px 1px 0 rgba(255,255,255,0.95)",
+  "0 1px 3px rgba(0,0,0,0.3)",
+  "0 2px 10px rgba(0,0,0,0.18)",
+].join(", ");
+
 export const urgencyDot: Record<"high" | "medium" | "low", string> = {
   high: COLORS.danger,
   medium: "#F0B94D",

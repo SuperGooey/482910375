@@ -18,6 +18,7 @@ export function StreetMap({ ranked, height = "100%" }: { ranked: CallUnit[]; hei
 
   useEffect(() => {
     let cancelled = false;
+    let resizeObserver: ResizeObserver | null = null;
     function initMap(L: typeof Leaflet) {
       if (cancelled || !containerRef.current || mapRef.current) return;
       try {
@@ -55,6 +56,11 @@ export function StreetMap({ ranked, height = "100%" }: { ranked: CallUnit[]; hei
         mapRef.current = map;
         setStatus("ready");
         setTimeout(() => map.invalidateSize(), MAP_RESIZE_SETTLE_DELAY_MS);
+        // the one-shot invalidateSize above only accounts for layout settling
+        // right after mount — this map now also renders inside a resizable
+        // desktop detail panel, so keep tiles aligned through later resizes too
+        resizeObserver = new ResizeObserver(() => map.invalidateSize());
+        resizeObserver.observe(containerRef.current);
       } catch {
         setStatus("fallback");
       }
@@ -64,6 +70,7 @@ export function StreetMap({ ranked, height = "100%" }: { ranked: CallUnit[]; hei
       .catch(() => !cancelled && setStatus("fallback"));
     return () => {
       cancelled = true;
+      resizeObserver?.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

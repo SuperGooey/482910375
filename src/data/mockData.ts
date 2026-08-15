@@ -156,6 +156,7 @@ export const CASES: CaseRecord[] = [
     id: "k1",
     unit: "Tech · M. Alvarez",
     location: "5th & Main",
+    propertyId: "5th-main",
     status: "en_route",
     meta: "ETA 3 min",
     latlng: [37.7912, -122.4013],
@@ -166,6 +167,7 @@ export const CASES: CaseRecord[] = [
     id: "k2",
     unit: "Tech · D. Ruiz",
     location: "Cedar Blvd",
+    propertyId: "cedar-blvd",
     status: "on_scene",
     meta: "On scene 6 min",
     latlng: [37.7955, -122.409],
@@ -174,6 +176,7 @@ export const CASES: CaseRecord[] = [
     id: "k3",
     unit: "Tech · J. Diaz",
     location: "Park Row",
+    propertyId: "park-row",
     status: "resolved",
     cost: 340,
     note: "Replaced water heater heating element, restored hot water.",
@@ -185,6 +188,7 @@ export const CASES: CaseRecord[] = [
     id: "k4",
     unit: "Tech · S. Patel",
     location: "Willow Ct",
+    propertyId: "willow-ct",
     status: "resolved",
     cost: 210,
     note: "Repaired a minor gas leak at the kitchen range connection.",
@@ -197,6 +201,7 @@ export const CASES: CaseRecord[] = [
     id: "k5",
     unit: "Tech · J. Alvarez",
     location: "Maple Dr",
+    propertyId: "maple-dr",
     status: "scheduled",
     date: "2026-08-13",
     time: "10:00 AM",
@@ -210,6 +215,7 @@ export const CASES: CaseRecord[] = [
     id: "k6",
     unit: "Tech · R. Kim",
     location: "Grove Ave",
+    propertyId: "grove-ave",
     status: "scheduled",
     date: "2026-08-13",
     time: "1:30 PM",
@@ -223,6 +229,7 @@ export const CASES: CaseRecord[] = [
     id: "k7",
     unit: "Tech · S. Patel",
     location: "Cedar Blvd",
+    propertyId: "cedar-blvd",
     status: "scheduled",
     date: "2026-08-14",
     time: "9:30 AM",
@@ -236,6 +243,7 @@ export const CASES: CaseRecord[] = [
     id: "k8",
     unit: "Tech · A. Brooks",
     location: "Pine St",
+    propertyId: "pine-st",
     status: "scheduled",
     date: "2026-08-18",
     time: "9:00 AM",
@@ -249,6 +257,7 @@ export const CASES: CaseRecord[] = [
     id: "k9",
     unit: "Tech · D. Ruiz",
     location: "Oak Ave",
+    propertyId: "oak-ave",
     status: "en_route",
     meta: "ETA 6 min",
     latlng: [37.7938, -122.3975],
@@ -259,6 +268,7 @@ export const CASES: CaseRecord[] = [
     id: "k10",
     unit: "Tech · A. Brooks",
     location: "Birch St",
+    propertyId: "birch-st",
     status: "en_route",
     meta: "ETA 9 min",
     latlng: [37.7875, -122.403],
@@ -266,6 +276,15 @@ export const CASES: CaseRecord[] = [
     contextItems: [{ label: "System reference", detail: "Central AC unit, approx. 8 years old based on service history." }],
   },
 ];
+
+// Reverse lookup for Call.resultCaseId — given a CaseRecord.id, finds the
+// Call (if any) that produced it, so a future case-detail accordion can
+// show "the call that led to this case." Most cases have no matching call
+// here (walk-ins/scheduled follow-ups aren't sourced from a CALLS entry) —
+// callers should handle `undefined` gracefully rather than assume a match.
+export function findOriginatingCall(caseId: string): Call | undefined {
+  return CALLS.find((call) => call.resultCaseId === caseId);
+}
 
 export const MISSED_CALLS: MissedCall[] = [
   {
